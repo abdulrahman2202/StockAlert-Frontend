@@ -1,0 +1,246 @@
+STOCKALERT - FRONTEND TESTING GUIDE (DEMO DATA)
+================================================
+
+Project type: Next.js 16 frontend-only app. There is NO real backend / API.
+All "endpoints" are Next.js routes (pages). All data is mock + localStorage.
+
+----------------------------------------------------------------------------
+1. SETUP
+----------------------------------------------------------------------------
+    npm install
+    npm run dev
+    Open http://localhost:3000
+
+No login needed. Demo data is loaded automatically on first visit.
+
+----------------------------------------------------------------------------
+2. ROUTES / ENDPOINTS (Next.js pages)
+----------------------------------------------------------------------------
+    GET  /                 -> Dashboard (home)
+    GET  /alerts           -> Alert management page
+    GET  /watchlist        -> Watchlist page
+    GET  /stocks/[symbol]  -> Stock detail + price chart
+                               (e.g. /stocks/RELIANCE, /stocks/TCS)
+
+There are no REST API calls. The service layer in src/lib/ uses mock
+functions instead. Comments in the code document what the future real API
+would be:
+    - GET  /stocks?q=...            (src/lib/stockService.ts -> searchStocks)
+    - GET  /stocks/:symbol          (getStockBySymbol)
+    - GET/POST /watchlist           (loadWatchlist / saveWatchlist)
+    - GET/POST /alerts, PATCH/DELETE /alerts/:id
+                                    (src/lib/alertService.ts)
+
+----------------------------------------------------------------------------
+3. DEMO DATA
+----------------------------------------------------------------------------
+10 NSE stocks (symbols below). Prices in INR.
+    RELIANCE  ~1426.50    TCS      ~2968.40    INFY   ~1585.75
+    HDFCBANK  ~1691.20    ICICIBANK ~1247.30   SBIN   ~842.65
+    ITC       ~452.80     WIPRO    ~487.55     LT     ~3612.40
+    BHARTIARTL ~1478.25
+
+5 seeded alerts (shown the first time, before you create your own):
+    RELIANCE  ABOVE 1500   -> TRIGGERED (already hit)
+    TCS       ABOVE 3000   -> ACTIVE
+    INFY      ABOVE 1600   -> ACTIVE
+    SBIN      BELOW 830    -> ACTIVE
+    HDFCBANK  ABOVE 1700   -> TRIGGERED
+
+Persistence (all in localStorage):
+    stockalert:watchlist:v1        watchlist symbols
+    stockalert:alerts:v1           alerts
+    stockalert:notifications:v1    notifications
+
+Reset demo data (optional):
+    Open DevTools -> Console and run:
+        localStorage.removeItem("stockalert:alerts:v1");
+        localStorage.removeItem("stockalert:watchlist:v1");
+        localStorage.removeItem("stockalert:notifications:v1");
+    Then refresh the page. Seeded alerts will come back.
+
+----------------------------------------------------------------------------
+4. HOW STOCK PRICES MOVE (THE SIMULATOR)
+----------------------------------------------------------------------------
+Prices are NOT live market data. They are simulated client-side so the UI
+feels alive and so you can watch alerts trigger. Two mechanisms:
+
+  a) Live ticks (every 5 seconds)
+     - StockProvider.tsx runs a setInterval every 5000 ms (TICK_INTERVAL_MS).
+     - On each tick each stock has a ~55% chance of moving
+       (Math.random() < 0.45 -> stay flat, otherwise move).
+     - Movement is calculated in src/lib/priceSimulator.ts -> simulatePriceMove:
+         movement = (Math.random() - 0.45) * 2 * volatility
+         volatility = 0.008  (0.8%)
+       So a single move is roughly between -0.72% and +0.88% per tick.
+       It is slightly biased upward because of the "-0.45" instead of "-0.5".
+     - currentPrice is updated, then change / changePercent are recomputed
+       against previousClose, and the "1D" and "1W" chart series get one new
+       point (timestamp = Date.now()).
+     - dayHigh / dayLow are recomputed from the 1D series.
+
+  b) Historical chart series (generated once at startup)
+     - src/data/mockStocks.ts uses a seeded PRNG (mulberry32) +
+       generateSeries() to create backfilled chart data for each range:
+         1D: 120 points, 3-min steps,   volatility 0.004
+         1W: 100 points, 1.5h steps,    volatility 0.006
+         1M:  90 points, 4h steps,      volatility 0.01
+         3M: 130 points, daily,         volatility 0.015
+         1Y: 260 points, daily,         volatility 0.02
+     - Because the seed is fixed, the chart always looks the same until live
+       ticks start appending new points.
+
+  c) Alert triggering
+     - On every tick, evaluateAlerts() checks each ACTIVE alert against the
+       updated price:
+         ABOVE          -> currentPrice >= targetPrice
+         BELOW          -> currentPrice <= targetPrice
+         PERCENT_CHANGE -> |changePercent| >= targetPrice (target is a %)
+     - When a condition is met the alert becomes TRIGGERED, a toast is shown,
+       and a notification is pushed (browser notification simulated).
+     - Note: 1D tick randomness is small, so reaching a target far away from
+       the current price may take a while. Use targets close to the current
+       price (or use the stock detail page) to see triggers quickly.
+
+----------------------------------------------------------------------------
+5. TEST CASES
+----------------------------------------------------------------------------
+
+[TC-1] Dashboard loads (GET /)
+  - Page shows greeting, 4 stat cards, Market Overview, Recent Alerts,
+    and the 10 Popular Stocks.
+  - Stat cards:
+      Watchlist Stocks = 0 (fresh), Active Alerts = 3, Triggered = 2,
+      Stocks Up Today = X/10 (X depends on which stocks are green).
+  - Expected: no console errors/warnings.
+
+[TC-2] Prices update live
+  - Stay on "/" and watch the same stock price on a Popular Stock card.
+  - Expected: some prices change within ~5-15 seconds; the change amount
+    and change % (green/red) can change.
+  - Check DevTools: no errors.
+
+[TC-3] Recent Alerts
+  - "Recent Alerts" shows up to 5 latest alerts with status colors
+    (TRIGGERED green check, DISABLED gray pause, ACTIVE bell).
+  - Click "Create Alert" (empty state) -> opens dialog.
+  - Click "View all alerts" -> navigates to /alerts.
+
+[TC-4] Search stocks
+  - Use the search box in the navbar (or on /watchlist).
+  - Type "tcs" -> TCS appears; type "Infosys" -> INFY appears; type
+    "xyz" -> "No stocks found".
+  - Click a result -> navigates to /stocks/<symbol>.
+
+[TC-5] Watchlist (GET /watchlist)
+  - With empty watchlist: empty-state card is shown.
+  - Add stocks: from a StockCard star button, from /watchlist search result,
+    or from the stock detail page "Watch" button.
+  - Watchlist page lists added stocks with columns: Symbol, Company, Price,
+    Change, Change %, Alerts count, View, Remove.
+  - Click the trash icon -> stock removed from list.
+  - Expected: Market Overview on the dashboard now shows the watchlist
+    stocks, and the "Watchlist Stocks" stat updates.
+  - Refresh the page -> watchlist persists (localStorage).
+
+[TC-6] Alerts page (GET /alerts)
+  - Tabs: All / Active / Triggered, each with a count badge.
+  - All tab shows the 5 seeded alerts.
+  - Active tab shows only ACTIVE ones (TCS, INFY, SBIN); Triggered tab shows
+    RELIANCE, HDFCBANK.
+  - "Create Alert" button opens the create dialog.
+
+[TC-7] Create an alert
+  - Open the create dialog (from Alerts page or a stock card).
+  - Pick stock (e.g. RELIANCE), condition ABOVE, target ABOVE current price,
+    notification BROWSER -> Create Alert.
+  - Expected: success toast; new alert appears at top of list as ACTIVE.
+  - Validation checks:
+      * Empty / non-numeric target -> "Please enter a valid number."
+      * Target <= 0                -> "Target must be greater than zero."
+      * ABOVE with target <= current -> error telling you to pick a higher
+        target.
+      * BELOW with target >= current -> error telling you to pick a lower
+        target.
+  - Set ABOVE target just slightly above the current price (e.g. current
+    1426 -> target 1427) and wait. Within ~5-60s the price should cross it:
+      * Alert flips to TRIGGERED, blue ring appears, toast shows,
+        notification is created.
+  - Repeat with BELOW (target just under current) and PERCENT_CHANGE
+    (target e.g. 0.2%).
+
+[TC-8] Disable / Enable / Delete alert
+  - On an ACTIVE alert click the pause icon -> status becomes DISABLED
+    (gray, "Paused", opacity reduced) and it stops being evaluated.
+  - Click Enable -> back to ACTIVE.
+  - Click the trash icon -> alert is removed with a confirm-less delete.
+  - Expected: counts in the tabs update.
+  - Refresh -> changes persist (localStorage).
+
+[TC-9] Notifications
+  - Click the bell icon in the navbar -> dropdown shows notifications.
+  - Header shows "Notifications" label, a "Mark all read" button (when there
+    are notifications) and unread dots next to new items.
+  - "Mark all read" clears the unread badge.
+  - "Clear all" (bottom) removes all notifications.
+  - When an alert triggers, a toast appears top-right and the bell badge
+    increases.
+  - Expected: no crash when the menu opens (this was a fixed bug related to
+    MenuGroupContext).
+
+[TC-10] Stock detail (GET /stocks/:symbol)
+  - Open /stocks/RELIANCE.
+  - Expected: header with symbol + exchange badge, current price with
+    change/change%, stats grid (Day High, Day Low, Previous Close, Volume,
+    Market Cap, Exchange), Price Chart with 1D/1W/1M/3M/1Y tabs.
+  - Switch chart ranges -> data redraws; color green if trend up, red if
+    down.
+  - "N alerts for this stock" link -> goes to /alerts.
+  - WatchlistButton toggle works ("Watch" <-> "Watching").
+  - "Create Price Alert" opens the dialog pre-filled with this stock.
+  - Invalid symbol (/stocks/NOPE) -> "Stock not found" screen with a link
+    back to the dashboard.
+
+[TC-11] Navigation & layout
+  - Sidebar links: Dashboard /, Watchlist /watchlist, Alerts /alerts.
+  - Active link highlighted based on current path.
+  - On mobile (narrow window or devtools responsive mode): hamburger opens
+    the sidebar sheet (nav links + close button).
+  - Settings gear dropdown in navbar shows "Settings" label + two disabled
+    items. (This also exercises the fixed DropdownMenuLabel.)
+
+[TC-12] Persistence round-trip
+  - Add stocks to watchlist, create an alert, disable an alert.
+  - Hard-refresh (Ctrl+Shift+R).
+  - Expected: watchlist, alert statuses, and notifications all restored.
+  - Clear localStorage (section 3) and refresh -> seeded demo data returns.
+
+----------------------------------------------------------------------------
+6. KNOWN BEHAVIOR / NOTES
+----------------------------------------------------------------------------
+- No real notifications: "Browser notification" / "Email" choices in the
+  create dialog are simulated (toast + in-app notification only).
+- Prices fluctuate around the seeded values; they do not track real markets.
+- One tick updates each stock with ~55% probability, so a specific stock may
+  briefly appear to "not move".
+- The PERCENT_CHANGE condition checks the change vs previous close, not vs
+  the price when the alert was created.
+- localStorage is per-browser/origin; another browser will show fresh demo
+  data again.
+
+----------------------------------------------------------------------------
+7. PASS / FAIL TRACKING
+----------------------------------------------------------------------------
+Test        Result (PASS/FAIL)   Notes
+TC-1        ____
+TC-2        ____
+TC-3        ____
+TC-4        ____
+TC-5        ____
+TC-6        ____
+TC-7        ____
+TC-8        ____
+TC-9        ____
+TC-10       ____
+TC-11       ____
+TC-12       ____

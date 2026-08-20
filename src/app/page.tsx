@@ -1,69 +1,113 @@
-import Image from "next/image";
+"use client";
+
+import { BellRing, CheckCircle2, Star, TrendingUp } from "lucide-react";
+
+import { MarketOverview } from "@/components/dashboard/MarketOverview";
+import { RecentAlerts } from "@/components/dashboard/RecentAlerts";
+import { StatsCard } from "@/components/dashboard/StatsCard";
+import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { StockCard } from "@/components/stocks/StockCard";
+import { StockSearch } from "@/components/stocks/StockSearch";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useStockContext } from "@/context/StockProvider";
+
+function greeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning 👋";
+  if (hour < 17) return "Good afternoon 👋";
+  return "Good evening 👋";
+}
 
 export default function Home() {
+  const { stocks, watchlist, alerts } = useStockContext();
+
+  const activeAlerts = alerts.filter((a) => a.status === "ACTIVE").length;
+  const triggeredAlerts = alerts.filter((a) => a.status === "TRIGGERED").length;
+  const stocksUp = stocks.filter((s) => s.change >= 0).length;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <DashboardLayout>
+      <div className="flex flex-col gap-6">
+        <section className="flex flex-col gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              {greeting()}
+            </h1>
+            <p className="mt-1 text-muted-foreground">
+              Monitor your stocks and get notified when prices reach your
+              targets.
+            </p>
+          </div>
+          <div className="max-w-xl sm:hidden">
+            <StockSearch />
+          </div>
+        </section>
+
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatsCard
+            title="Watchlist Stocks"
+            value={watchlist.length}
+            icon={Star}
+            description="Stocks you are tracking"
+          />
+          <StatsCard
+            title="Active Alerts"
+            value={activeAlerts}
+            icon={BellRing}
+            description="Waiting for price targets"
+          />
+          <StatsCard
+            title="Triggered Alerts"
+            value={triggeredAlerts}
+            icon={CheckCircle2}
+            up={triggeredAlerts > 0}
+            description="Conditions already met"
+          />
+          <StatsCard
+            title="Stocks Up Today"
+            value={`${stocksUp}/${stocks.length}`}
+            icon={TrendingUp}
+            up={stocksUp >= stocks.length / 2}
+            description="Trading higher today"
+          />
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <MarketOverview />
+          </div>
+          <RecentAlerts />
+        </section>
+
+        <section id="popular-stocks" className="scroll-mt-24">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-semibold tracking-tight">
+              Popular Stocks
+            </h2>
+            <Badge variant="outline">Demo data</Badge>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {stocks.map((stock) => (
+              <StockCard key={stock.symbol} stock={stock} />
+            ))}
+          </div>
+        </section>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>About this preview</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            <p>
+              Prices shown here are simulated mock values for demonstration only.
+              They are not live market data. Prices update automatically every
+              few seconds so you can preview how alerts will behave once a real
+              data feed is connected.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    </DashboardLayout>
   );
 }

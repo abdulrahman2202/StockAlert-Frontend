@@ -1,0 +1,67 @@
+import type { Alert } from "@/types/alert";
+
+const now = Date.now();
+const HOUR = 60 * 60 * 1000;
+
+export const initialAlerts: Alert[] = [
+  {
+    id: "seed-alert-reliance",
+    stockSymbol: "RELIANCE",
+    stockName: "Reliance Industries",
+    condition: "ABOVE",
+    targetPrice: 1500,
+    currentPrice: 1502.3,
+    status: "TRIGGERED",
+    createdAt: now - 2 * HOUR,
+    triggeredAt: now - 10 * 60 * 1000,
+    notificationType: "BROWSER",
+  },
+  {
+    id: "seed-alert-tcs",
+    stockSymbol: "TCS",
+    stockName: "Tata Consultancy Services",
+    condition: "ABOVE",
+    targetPrice: 3000,
+    currentPrice: 2968.4,
+    status: "ACTIVE",
+    createdAt: now - 3 * HOUR,
+    triggeredAt: null,
+    notificationType: "BROWSER",
+  },
+  {
+    id: "seed-alert-infy",
+    stockSymbol: "INFY",
+    stockName: "Infosys",
+    condition: "ABOVE",
+    targetPrice: 1600,
+    currentPrice: 1585.75,
+    status: "ACTIVE",
+    createdAt: now - 2 * HOUR,
+    triggeredAt: null,
+    notificationType: "EMAIL",
+  },
+  {
+    id: "seed-alert-sbin",
+    stockSymbol: "SBIN",
+    stockName: "State Bank of India",
+    condition: "BELOW",
+    targetPrice: 830,
+    currentPrice: 842.65,
+    status: "ACTIVE",
+    createdAt: now - 5 * HOUR,
+    triggeredAt: null,
+    notificationType: "BROWSER",
+  },
+  {
+    id: "seed-alert-hdfc",
+    stockSymbol: "HDFCBANK",
+    stockName: "HDFC Bank",
+    condition: "ABOVE",
+    targetPrice: 1700,
+    currentPrice: 1702.35,
+    status: "TRIGGERED",
+    createdAt: now - 26 * HOUR,
+    triggeredAt: now - 2 * 60 * 60 * 1000,
+    notificationType: "BROWSER",
+  },
+];
